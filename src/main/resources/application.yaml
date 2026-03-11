@@ -1,0 +1,32 @@
+spring:
+  mail:
+    host: localhost
+    port: 25
+    from: backup-monitor@example.com
+    to: admin@example.com
+    subject: "BSP Forum Backup Monitor - Missing Backups"
+  datasource:
+    url: jdbc:sqlite:./backup-monitor.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+
+bsp:
+  zip-checkup-cron: "0 0 8 * * MON-FRI"
+  fusion-list: ""
+  dih:
+    s3:
+      endpoint: http://minio.example.com
+      login-token-url: http://auth.example.com/token
+      bucket: backups
+      prefix: forum
+    login:
+      user: backup-user
+      passwd: secret
+  zam:
+    mandant-list: []
+    instance-list: []
+  external-service:
+    url: ""
