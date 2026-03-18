@@ -1,0 +1,67 @@
+INCIDENT REPORT — Project Management
+
+INCIDENT REPORT
+================================================
+Title:    Production Performance — forumsuite JVM
+Date:     18.03.2026, 14:10 – 14:30 (CET)
+Severity: High
+System:   bsp-zms01 forumsuite (OpenShift)
+================================================
+
+WHAT HAPPENED
+-------------
+Between 14:10–14:30 the forumsuite JVM allocated
+131 GB of objects in ~2 hours, causing:
+- Application thread freezes (Stop-The-World GC)
+- Two large memory spikes (~15 GB and ~10 GB)
+- GC pause times up to 60ms
+- Likely user-facing slowdowns/timeouts
+
+ROOT CAUSE
+----------
+Excessive object creation per HTTP request
+(JSON parsing + HashMap) is overwhelming the
+garbage collector. Root cause is in application
+code — not infrastructure.
+
+ACTIONS REQUIRED
+----------------
+1. Dev team to fix allocation hotspots (ticket raised)
+2. Ops: Set Dynatrace alert — Old Gen memory > 8 GiB
+3. Ops: If GC keeps worsening → restart pod as
+   short-term relief
+4. Re-verify metrics in Dynatrace after fix deployed
+
+================================================
+TICKET — Development Team
+
+TICKET
+================================================
+Title:    [PERF] JVM allocation hotspot — forumsuite
+Priority: High
+Date:     18.03.2026
+================================================
+
+PROBLEM
+-------
+Dynatrace recorded 131 GB allocated in ~2h causing
+Major GC events and thread suspensions in production.
+
+Flame graph identified two hotspots in the HTTP
+request processing path:
+
+1. JSONParser — likely ObjectMapper created per
+   request instead of shared singleton
+   → Fix: Inject ObjectMapper as @Bean, reuse globally
+
+2. HashMap — excessive Map creation per request
+   → Fix: Audit and cache/reduce where possible
+
+ACCEPTANCE CRITERIA
+-------------------
+- [ ] No per-request ObjectMapper instantiation
+- [ ] HashMap creation in request path reduced
+- [ ] After fix: allocation rate below 20 GB/2h
+- [ ] GC pause time consistently below 20ms
+
+================================================
