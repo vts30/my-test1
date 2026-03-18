@@ -1,0 +1,167 @@
+INCIDENT REPORT
+===============================================================
+Title:      Production Performance Incident — forumsuite JVM
+            Memory & GC Degradation
+Date:       18.03.2026
+Time:       14:10 – 14:30 (CET)
+Severity:   High
+Status:     Under Investigation
+Reported by: [Your Name]
+System:     bsp-1651-zms_ocp-bsp-zms01_forumsuite
+            (forumsuite-d59b8b6bf) on Red Hat OpenShift
+Monitoring: Dynatrace
+===============================================================
+
+SUMMARY
+-------
+Between 14:10 and 14:30 on 18.03.2026, the forumsuite
+application experienced a severe JVM memory and garbage
+collection (GC) event. The JVM allocated 131 GB of objects
+within approximately 2 hours, resulting in application thread
+suspensions, major GC cycles, and potential user-facing
+slowdowns or timeouts.
+
+TIMELINE
+--------
+13:40       Normal baseline operation
+~14:00      GC activity begins increasing (minor GC spikes)
+~14:10      First major allocation spike: ~15 GB in short burst
+            Eden Space exhausted, promotion to Old Gen begins
+~14:15      JVM thread suspension spike (~10%)
+            All application threads paused (Stop-The-World GC)
+~14:20      Second allocation spike: ~10 GB
+            Old Gen usage peaks at ~10 GiB
+            GC pause time reaches ~60ms
+~14:30      Old Gen GC completes, memory partially released
+14:30+      Eden Space GC frequency increasing (not stabilized)
+
+IMPACT
+------
+- User-facing: Likely slowdowns or request timeouts
+  during 14:10–14:30
+- System: Excessive CPU consumed by GC during the event
+- Risk: OutOfMemoryError possible if load increases
+  before fix is applied
+
+ROOT CAUSE (Preliminary)
+-------------------------
+Dynatrace flame graph and allocation hotspot analysis
+identified the following:
+
+1. JSONParser — High allocation on every HTTP request.
+   JSON deserialization objects are likely being created
+   per-request instead of using shared/singleton instances.
+
+2. HashMap — Excessive HashMap creation in the request
+   processing path contributing to GC pressure.
+
+3. Spring Filter Chain — Multiple OncePerRequestFilter
+   implementations building large objects per request
+   (CharacterEncodingFilter, ServerHttpsObservationFilter,
+   FormContentFilter, etc.)
+
+The combination of these allocation patterns overwhelmed
+the G1 garbage collector, causing Eden Space to fill up
+faster than it could be collected, promoting large amounts
+of short-lived objects into Old Gen, and triggering
+expensive Major GC cycles.
+
+IMMEDIATE ACTIONS TAKEN
+------------------------
+[ ] Monitoring pod for recurrence via Dynatrace
+[ ] No memory limits reduced — headroom required
+[ ] Development team notified (see ticket below)
+
+RECOMMENDED NEXT STEPS
+-----------------------
+DEV TEAM:
+1. Review all JSON deserialization — ensure ObjectMapper
+   is singleton/shared, not instantiated per request
+2. Audit HashMap creation in request handling path
+3. Review Spring filter chain for per-request large
+   object creation
+4. Enable GC logging: -Xlog:gc* for detailed analysis
+5. Consider object pooling/caching for repeated allocations
+
+OPS/PROJECT TEAM:
+1. Set up Dynatrace alert: Old Gen memory > 8 GiB
+2. If GC frequency continues rising → restart pod as
+   short-term mitigation
+3. Re-analyze Dynatrace metrics after dev fix is deployed
+
+EVIDENCE
+--------
+- Dynatrace screenshots (6 images): 18.03.2026 15:31–15:37
+- Memory allocations: 131 GB total in ~2h window
+- Thread suspension: ~10% spike at 14:15
+- Old Gen GC pause: ~60ms at 14:20
+- Allocation hotspots: JSONParser, HashMap (flame graph)
+
+===============================================================
+DEVELOPMENT TEAM TICKET
+
+TICKET
+===============================================================
+Title:   [PERF] Critical JVM allocation hotspot —
+         JSONParser & HashMap per-request — forumsuite
+Priority: High
+Component: forumsuite
+Environment: Production (bsp-zms01, OpenShift)
+Found via: Dynatrace — 18.03.2026
+===============================================================
+
+BACKGROUND
+----------
+A production performance incident occurred on 18.03.2026
+between 14:10–14:30. Dynatrace recorded 131 GB of memory
+allocated by the forumsuite JVM in ~2 hours, causing
+Stop-The-World GC events, thread suspensions, and potential
+user-facing timeouts.
+
+Dynatrace flame graph and allocation hotspot analysis
+identified the root cause in the HTTP request processing path.
+
+PROBLEM
+-------
+The following are confirmed allocation hotspots visible
+in the Dynatrace flame graph (allocation path):
+
+  Thread
+  └── ThreadPoolExecutor (Tomcat worker threads)
+      └── NioEndpoint → Http11Processor → CoyoteAdapter
+          └── Spring ApplicationFilterChain
+              └── OncePerRequestFilter (multiple)
+                  └── [Application code]
+                      ├── JSONParser       ← HOTSPOT
+                      └── HashMap          ← HOTSPOT
+
+1. JSONParser allocations on every request
+   - Likely cause: ObjectMapper or JSON parser instance
+     created per-request instead of being shared/singleton
+   - Fix: Inject ObjectMapper as a Spring @Bean (singleton)
+     and reuse it across all requests
+
+2. HashMap over-allocation
+   - Large or numerous HashMaps created per request
+   - Fix: Audit request-scoped code that builds Maps;
+     reuse, cache, or replace with lighter structures
+     where appropriate
+
+3. Spring Filter Chain object creation
+   - Multiple filter implementations creating objects
+     on every request
+   - Fix: Review each custom OncePerRequestFilter for
+     per-request allocations that could be cached
+     or reduced
+
+ACCEPTANCE CRITERIA
+-------------------
+- [ ] ObjectMapper usage audited — no per-request
+      instantiation
+- [ ] HashMap creation in request path reviewed
+      and reduced where possible
+- [ ] Spring filters reviewed for unnecessary allocations
+- [ ] After fix deployed: Dynatrace shows allocation
+      rate reduced (target: <20 GB/2h under same load)
+- [ ] No Major GC events under normal production load
+- [ ] GC pause time consistently below 20ms
