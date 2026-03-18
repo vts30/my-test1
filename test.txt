@@ -1,1 +1,47 @@
-test
+For the Development Team
+Subject: Critical JVM Memory & GC Issues — forumsuite — Action Required
+
+JSON Parsing allocation hotspot
+
+Dynatrace flame graph shows JSONParser as a top allocator on every request.
+Review all JSON deserialization in the request handling path. Ensure ObjectMapper (Jackson) instances are singleton/shared, not created per-request. Creating a new ObjectMapper per request is a common and expensive mistake.
+HashMap over-allocation
+
+HashMap shows up as a hotspot in allocation. Review code that builds large Maps per request — consider reusing, caching, or switching to more memory-efficient structures where possible.
+Spring Filter Chain — reduce object creation
+
+Multiple OncePerRequestFilter implementations are in the allocation path. Check if any filter is building large objects (collections, response wrappers, parsed bodies) on every request.
+Object pooling / caching
+
+For objects that are repeatedly allocated and discarded (visible from the 131 GB total allocation), introduce object pooling or result caching where appropriate.
+JVM Tuning (short-term mitigation)
+
+Consider increasing G1 heap region size (-XX:G1HeapRegionSize) and Eden space ratio to reduce frequency of minor GCs.
+Enable GC logging (-Xlog:gc*) to capture exact GC pause details for root cause analysis.
+Consider enabling Dynatrace memory dump during next spike to get exact allocation traces.
+
+
+
+----
+For the Project / Operations Team
+Subject: Production Performance Incident — forumsuite — 18.03.2026 ~14:10–14:30
+
+What happened:
+Between 14:10 and 14:30 today, the forumsuite application experienced a severe memory and GC event on the bsp-zms01 pod in OpenShift. The JVM allocated 131 GB of objects in ~2 hours, causing:
+
+Application thread suspension (users may have experienced slowness or timeouts)
+Two major memory spikes (~15 GB and ~10 GB)
+Full GC with ~60ms pause time
+Impact:
+
+Potential user-facing slowdowns or request timeouts during 14:10–14:30
+Increased resource consumption on the OpenShift pod
+Risk of OutOfMemoryError if load increases further without fix
+Root cause (preliminary):
+Excessive object allocation per HTTP request — specifically JSON parsing and HashMap creation — is overwhelming the JVM garbage collector.
+
+Immediate actions recommended:
+
+Monitor the pod for recurrence; if GC frequency keeps increasing (sawtooth pattern was accelerating after 14:30), consider a pod restart as short-term relief
+Do not reduce memory limits — the application needs the headroom while the code fix is pending
+Ask the dev team to prioritize investigation of JSON parsing and object creation patterns (ticket to be raised)
