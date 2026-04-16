@@ -5,6 +5,8 @@ import de.vts.monitor.forum.db.MissingBackupRecord;
 import de.vts.monitor.forum.db.MissingBackupRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -76,7 +78,13 @@ public class MissingBackupService {
             return;
         }
         try {
-            restTemplate.postForObject(url, record, String.class);
+            HttpHeaders headers = new HttpHeaders();
+            String apiKey = bspConfiguration.getExternalService().getApiKey();
+            if (apiKey != null && !apiKey.isBlank()) {
+                headers.set("x-api-key", apiKey);
+            }
+            HttpEntity<MissingBackupRecord> request = new HttpEntity<>(record, headers);
+            restTemplate.postForObject(url, request, String.class);
             log.info("External service notified for mandant={}, instance={}", record.getMandant(), record.getInstance());
         } catch (Exception e) {
             log.error("Failed to call external service for mandant={}: {}", record.getMandant(), e.getMessage());
