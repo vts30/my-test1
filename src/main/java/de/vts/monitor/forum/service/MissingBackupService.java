@@ -26,20 +26,37 @@ public class MissingBackupService {
     }
 
     public void processMissing(String mandant, String instance) {
-        boolean alreadyMissing = repository.findByMandantAndInstance(mandant, instance)
-                .filter(r -> "MISSING".equals(r.getStatus()))
-                .isPresent();
+        processMissing(mandant, instance, null, null);
+    }
 
-        if (!alreadyMissing) {
-            MissingBackupRecord record = new MissingBackupRecord(mandant, instance);
+    public void processMissing(String mandant, String instance, String lastBackupFile, Integer daysOld) {
+        var existing = repository.findByMandantAndInstance(mandant, instance)
+                .filter(r -> "MISSING".equals(r.getStatus()));
+
+        if (existing.isPresent()) {
+            MissingBackupRecord record = existing.get();
+            if (record.getDaysOld() == null && daysOld != null) {
+                record.setLastBackupFile(lastBackupFile);
+                record.setDaysOld(daysOld);
+                repository.save(record);
+            }
+        } else {
+            MissingBackupRecord record = lastBackupFile != null
+                    ? new MissingBackupRecord(mandant, instance, lastBackupFile, daysOld)
+                    : new MissingBackupRecord(mandant, instance);
             repository.save(record);
-            log.warn("Missing backup recorded in DB: mandant={}, instance={}", mandant, instance);
+            log.warn("Missing backup recorded in DB: mandant={}, instance={}, lastBackupFile={}, daysOld={}", mandant, instance, lastBackupFile, daysOld);
             callExternalService(record);
         }
     }
 
     public List<MissingBackupRecord> getAllMissing() {
-        return repository.findByStatus("MISSING");
+        return repository.findByStatusAndDaysOldIsNotNull("MISSING");
+    }
+
+    public void deleteAllMissing() {
+        repository.deleteAll(repository.findByStatus("MISSING"));
+        log.info("All MISSING records deleted from DB");
     }
 
     public MissingBackupRecord resolve(Long id) {
@@ -47,7 +64,9 @@ public class MissingBackupService {
                 .orElseThrow(() -> new RuntimeException("Record not found: " + id));
         record.setStatus("RESOLVED");
         record.setResolvedAt(LocalDateTime.now());
-        return repository.save(record);
+        MissingBackupRecord saved = repository.save(record);
+        callExternalService(saved);
+        return saved;
     }
 
     private void callExternalService(MissingBackupRecord record) {

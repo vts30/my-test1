@@ -47,22 +47,34 @@ public class BackupService {
         log.info("Found {} mandants.", mandants);
 
         Map<String, String> latestFiles = new HashMap<>();
+        Map<String, String[]> mandantInstanceMap = new HashMap<>();
         for (String mandant : mandants) {
             if (bspConfiguration.getZam().getMandantList() != null
                     && bspConfiguration.getZam().getMandantList().contains(mandant)) {
                 for (String instance : bspConfiguration.getZam().getInstanceList()) {
                     var info = backupReader.getLatestZipInfo(mandant, instance, client);
-                    if (info != null) latestFiles.put(info.getMandantId(), info.getBackupFileName());
-                    else missingBackupService.processMissing(mandant, instance);
+                    if (info != null) {
+                        latestFiles.put(info.getMandantId(), info.getBackupFileName());
+                        mandantInstanceMap.put(info.getMandantId(), new String[]{mandant, instance});
+                    } else missingBackupService.processMissing(mandant, instance);
                 }
             } else {
                 var info = backupReader.getLatestZipInfo(mandant, "forumsuite", client);
-                if (info != null) latestFiles.put(info.getMandantId(), info.getBackupFileName());
-                else missingBackupService.processMissing(mandant, "forumsuite");
+                if (info != null) {
+                    latestFiles.put(info.getMandantId(), info.getBackupFileName());
+                    mandantInstanceMap.put(info.getMandantId(), new String[]{mandant, "forumsuite"});
+                } else missingBackupService.processMissing(mandant, "forumsuite");
             }
         }
 
-        return getOutdatedMandantsGroupedByAge(latestFiles);
+        Map<Integer, Map<String, String>> outdated = getOutdatedMandantsGroupedByAge(latestFiles);
+        outdated.forEach((days, mandantFiles) ->
+            mandantFiles.forEach((mandantId, filename) -> {
+                String[] parts = mandantInstanceMap.get(mandantId);
+                if (parts != null) missingBackupService.processMissing(parts[0], parts[1], filename, days);
+            })
+        );
+        return outdated;
     }
 
     private SortedMap<Integer, Map<String, String>> getOutdatedMandantsGroupedByAge(Map<String, String> fileMap) {

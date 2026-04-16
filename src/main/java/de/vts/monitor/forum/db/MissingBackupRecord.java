@@ -25,6 +25,10 @@ public class MissingBackupRecord {
 
     private LocalDateTime resolvedAt;
 
+    private String lastBackupFile;
+
+    private Integer daysOld;
+
     public MissingBackupRecord() {}
 
     public MissingBackupRecord(String mandant, String instance) {
@@ -34,13 +38,23 @@ public class MissingBackupRecord {
         this.status = "MISSING";
     }
 
+    public MissingBackupRecord(String mandant, String instance, String lastBackupFile, int daysOld) {
+        this(mandant, instance);
+        this.lastBackupFile = lastBackupFile;
+        this.daysOld = daysOld;
+    }
+
     public Long getId() { return id; }
     public String getMandant() { return mandant; }
     public String getInstance() { return instance; }
     public LocalDateTime getDetectedAt() { return detectedAt; }
     public String getStatus() { return status; }
     public LocalDateTime getResolvedAt() { return resolvedAt; }
+    public String getLastBackupFile() { return lastBackupFile; }
+    public Integer getDaysOld() { return daysOld; }
 
     public void setStatus(String status) { this.status = status; }
     public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
+    public void setLastBackupFile(String lastBackupFile) { this.lastBackupFile = lastBackupFile; }
+    public void setDaysOld(Integer daysOld) { this.daysOld = daysOld; }
 }

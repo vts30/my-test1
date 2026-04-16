@@ -6,7 +6,7 @@ spring:
     to: admin@example.com
     subject: "BSP Forum Backup Monitor - Missing Backups"
   datasource:
-    url: jdbc:sqlite:./backup-monitor.db
+    url: jdbc:sqlite:/tmp/backup-monitor.db
     driver-class-name: org.sqlite.JDBC
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
@@ -29,4 +29,4 @@ bsp:
     mandant-list: []
     instance-list: []
   external-service:
-    url: ""
+    url: "http://localhost:8080/api/dummy-external-service"

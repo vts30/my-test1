@@ -16,16 +16,19 @@ public class BackupChecker {
 
     private final BackupService backupService;
     private final EmailService emailService;
+    private final MissingBackupService missingBackupService;
 
-    public BackupChecker(BackupService backupService, EmailService emailService) {
+    public BackupChecker(BackupService backupService, EmailService emailService, MissingBackupService missingBackupService) {
         this.backupService = backupService;
         this.emailService = emailService;
+        this.missingBackupService = missingBackupService;
     }
 
     @Scheduled(cron = "#{@bspConfiguration.zipCheckupCron}")
     public void checkMissingBackups() {
         log.info("###############################################################");
         log.info("Starting backup check...");
+        missingBackupService.deleteAllMissing();
 
         try {
             Map<Integer, Map<String, String>> outdated = backupService.getOutdatedMandants();

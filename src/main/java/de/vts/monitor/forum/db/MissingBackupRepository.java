@@ -6,5 +6,6 @@ import java.util.Optional;
 
 public interface MissingBackupRepository extends JpaRepository<MissingBackupRecord, Long> {
     List<MissingBackupRecord> findByStatus(String status);
+    List<MissingBackupRecord> findByStatusAndDaysOldIsNotNull(String status);
     Optional<MissingBackupRecord> findByMandantAndInstance(String mandant, String instance);
 }
