@@ -104,12 +104,12 @@ public class BspConfiguration {
     public void setExternalService(ExternalService externalService) { this.externalService = externalService; }
 
     public static class ExternalService {
-        private String url = "";
+        private String urlTemplate = "";
         private String apiKey = "";
 
-        public String getUrl() { return url; }
+        public String getUrlTemplate() { return urlTemplate; }
 
-        public void setUrl(String url) { this.url = url; }
+        public void setUrlTemplate(String urlTemplate) { this.urlTemplate = urlTemplate; }
 
         public String getApiKey() { return apiKey; }
 

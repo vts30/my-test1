@@ -38,4 +38,13 @@ public class MissingBackupController {
         backupChecker.checkMissingBackups();
         return ResponseEntity.ok("Backup check triggered");
     }
+
+    // POST /api/missing-backups/trigger/{mandant}?instance=forumsuite
+    @PostMapping("/trigger/{mandant}")
+    public ResponseEntity<String> triggerForMandant(
+            @PathVariable String mandant,
+            @RequestParam(defaultValue = "forumsuite") String instance) {
+        missingBackupService.notifyExternalService(mandant, instance);
+        return ResponseEntity.ok("External service notified for mandant=" + mandant + ", instance=" + instance);
+    }
 }

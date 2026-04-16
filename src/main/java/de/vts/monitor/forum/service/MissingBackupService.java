@@ -71,19 +71,26 @@ public class MissingBackupService {
         return saved;
     }
 
+    public void notifyExternalService(String mandant, String instance) {
+        callExternalService(new MissingBackupRecord(mandant, instance));
+    }
+
     private void callExternalService(MissingBackupRecord record) {
-        String url = bspConfiguration.getExternalService().getUrl();
-        if (url == null || url.isBlank()) {
+        String urlTemplate = bspConfiguration.getExternalService().getUrlTemplate();
+        if (urlTemplate == null || urlTemplate.isBlank()) {
             log.info("No external service URL configured, skipping notification for mandant={}", record.getMandant());
             return;
         }
+        String url = urlTemplate
+                .replace("{mandant}", record.getMandant())
+                .replace("{instance}", record.getInstance());
         try {
             HttpHeaders headers = new HttpHeaders();
             String apiKey = bspConfiguration.getExternalService().getApiKey();
             if (apiKey != null && !apiKey.isBlank()) {
-                headers.set("x-api-key", apiKey);
+                headers.set("X-API-KEY", apiKey);
             }
-            HttpEntity<MissingBackupRecord> request = new HttpEntity<>(record, headers);
+            HttpEntity<Void> request = new HttpEntity<>(headers);
             restTemplate.postForObject(url, request, String.class);
             log.info("External service notified for mandant={}, instance={}", record.getMandant(), record.getInstance());
         } catch (Exception e) {
